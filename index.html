@@ -63,7 +63,6 @@
     canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
     .pdf-canvas-layer { z-index: 1; pointer-events: none; }
     
-    /* Scroll fix: Allow pan gesture when Pen is OFF */
     .draw-canvas-layer { z-index: 2; touch-action: pan-y; }
     .draw-canvas-layer.drawing-active { touch-action: none; }
 
@@ -238,7 +237,6 @@
     const bgPanel = document.getElementById('bg-panel');
     const calcBox = document.getElementById('calc-box');
 
-    // Toggle Drawing CSS Class to Enable/Disable Smooth Scrolling
     function updateCanvasTouchBehavior() {
       document.querySelectorAll('.draw-canvas-layer').forEach(c => {
         if (currentTool !== 'off') {
@@ -249,7 +247,6 @@
       });
     }
 
-    // Eye Button Toggle
     eyeBtn.addEventListener('click', () => {
       const isHidden = mainToolbar.classList.toggle('ui-hidden');
       bottomDock.classList.toggle('ui-hidden');
@@ -259,7 +256,6 @@
       eyeBtn.querySelector('i').className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
     });
 
-    // File Input
     document.getElementById('file-input').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file && file.type === "application/pdf") {
@@ -275,7 +271,6 @@
       }
     });
 
-    // Add Blank Page
     document.getElementById('btn-add-board').addEventListener('click', createBlankPage);
 
     function createBlankPage() {
@@ -353,7 +348,6 @@
       }
     }
 
-    // BG Panel Selector
     document.getElementById('btn-bg-trigger').addEventListener('click', (e) => {
       e.stopPropagation();
       shapesPanel.classList.remove('open');
@@ -373,7 +367,6 @@
       });
     });
 
-    // History Save
     function saveHistory(canvas) {
       const h = historyStore.get(canvas);
       if (!h) return;
@@ -384,7 +377,6 @@
       if (h.stack.length > 15) { h.stack.shift(); h.step--; }
     }
 
-    // Undo / Redo
     document.getElementById('btn-undo').addEventListener('click', () => {
       if (!activeDrawCanvas) {
         const canvases = document.querySelectorAll('.draw-canvas-layer');
@@ -406,7 +398,6 @@
       if (h.step < h.stack.length - 1) { h.step++; ctx.putImageData(h.stack[h.step], 0, 0); }
     });
 
-    // Tools
     function setActive(btn) {
       document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
@@ -445,7 +436,6 @@
     }
     document.getElementById('close-calc').addEventListener('click', () => calcBox.style.display = 'none');
 
-    // Shapes Toggle
     document.getElementById('btn-shapes-trigger').addEventListener('click', (e) => {
       e.stopPropagation();
       bgPanel.classList.remove('open');
@@ -467,7 +457,6 @@
       });
     });
 
-    // Clear
     document.getElementById('btn-clear').addEventListener('click', () => {
       document.querySelectorAll('.draw-canvas-layer').forEach(c => {
         c.getContext('2d').clearRect(0, 0, c.width, c.height);
@@ -475,11 +464,9 @@
       });
     });
 
-    // Zoom Buttons
     document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.2; renderAllPages(); });
     document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.4) { currentScale -= 0.2; renderAllPages(); } });
 
-    // Text Creation
     function createInlineText(wrapper, ctx, x, y) {
       const input = document.createElement('input');
       input.type = 'text';
@@ -506,7 +493,6 @@
       input.addEventListener('blur', finalizeText);
     }
 
-    // Attach Listeners
     function attachDrawingListeners(canvas, wrapper) {
       const ctx = canvas.getContext('2d');
 
@@ -581,6 +567,29 @@
     }
 
     renderAllPages();
+  </script>
+
+  <!-- PWA Installation Banner Script -->
+  <script>
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      
+      const installBtn = document.createElement('button');
+      installBtn.innerHTML = '📲 Install TeachBoard App';
+      installBtn.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:99999;padding:12px 24px;background:#2563eb;color:#fff;border:none;border-radius:25px;font-weight:bold;box-shadow:0 10px 25px rgba(0,0,0,0.3);cursor:pointer;';
+      
+      document.body.appendChild(installBtn);
+
+      installBtn.addEventListener('click', () => {
+        installBtn.remove();
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          deferredPrompt = null;
+        });
+      });
+    });
   </script>
 </body>
 </html>
