@@ -13,11 +13,10 @@
     html, body {
       width: 100vw; height: 100vh; overflow: hidden;
       background-color: #64748b !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      touch-action: none;
     }
 
     #board-wrapper { 
-      width: 100vw; height: 100vh; overflow: auto; display: flex; 
+      width: 100vw; height: 100vh; overflow-y: auto; overflow-x: auto; display: flex; 
       flex-direction: column; align-items: center; padding: 16px 0;
       -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
     }
@@ -62,10 +61,13 @@
     }
 
     canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-    .pdf-canvas-layer { z-index: 1; }
-    .draw-canvas-layer { z-index: 2; touch-action: none; }
+    .pdf-canvas-layer { z-index: 1; pointer-events: none; }
+    
+    /* Scroll fix: Allow pan gesture when Pen is OFF */
+    .draw-canvas-layer { z-index: 2; touch-action: pan-y; }
+    .draw-canvas-layer.drawing-active { touch-action: none; }
 
-    /* Single Unified Vertical Sidebar Container */
+    /* Unified Sidebar Container */
     #sidebar-container {
       position: fixed !important; top: 12px !important; left: 12px !important; z-index: 10000 !important;
       display: flex !important; flex-direction: column !important; align-items: center !important; gap: 8px !important;
@@ -134,7 +136,6 @@
     <div id="pdf-render-container"></div>
   </div>
 
-  <!-- Unified Sidebar Structure (Eye + Toolbar Combined to avoid misalignment) -->
   <div id="sidebar-container">
     <button id="eye-btn" title="Toggle Toolbar"><i class="fa-solid fa-eye"></i></button>
 
@@ -237,6 +238,17 @@
     const bgPanel = document.getElementById('bg-panel');
     const calcBox = document.getElementById('calc-box');
 
+    // Toggle Drawing CSS Class to Enable/Disable Smooth Scrolling
+    function updateCanvasTouchBehavior() {
+      document.querySelectorAll('.draw-canvas-layer').forEach(c => {
+        if (currentTool !== 'off') {
+          c.classList.add('drawing-active');
+        } else {
+          c.classList.remove('drawing-active');
+        }
+      });
+    }
+
     // Eye Button Toggle
     eyeBtn.addEventListener('click', () => {
       const isHidden = mainToolbar.classList.toggle('ui-hidden');
@@ -267,7 +279,7 @@
     document.getElementById('btn-add-board').addEventListener('click', createBlankPage);
 
     function createBlankPage() {
-      const renderQuality = 3.0; // High Quality Scale Factor
+      const renderQuality = 3.0;
       const width = Math.min(window.innerWidth * 0.95, 800) * currentScale;
       const height = (window.innerHeight * 0.8) * currentScale;
 
@@ -278,6 +290,7 @@
 
       const dCanvas = document.createElement('canvas');
       dCanvas.className = 'draw-canvas-layer';
+      if (currentTool !== 'off') dCanvas.classList.add('drawing-active');
       
       dCanvas.width = width * renderQuality;
       dCanvas.height = height * renderQuality;
@@ -301,7 +314,6 @@
         return;
       }
 
-      // Ultra HD Resolution Multiplier (3x fixes blur completely)
       const renderQuality = 3.0;
 
       for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
@@ -314,16 +326,16 @@
           pageWrapper.style.width = `${baseViewport.width}px`;
           pageWrapper.style.height = `${baseViewport.height}px`;
 
-          // HD PDF Background Layer
           const pCanvas = document.createElement('canvas');
           pCanvas.className = 'pdf-canvas-layer';
           pCanvas.width = hdViewport.width;
           pCanvas.height = hdViewport.height;
           const pCtx = pCanvas.getContext('2d');
 
-          // HD Drawing Layer
           const dCanvas = document.createElement('canvas');
           dCanvas.className = 'draw-canvas-layer';
+          if (currentTool !== 'off') dCanvas.classList.add('drawing-active');
+
           dCanvas.width = hdViewport.width;
           dCanvas.height = hdViewport.height;
           const dCtx = dCanvas.getContext('2d');
@@ -335,7 +347,6 @@
           pageWrapper.appendChild(dCanvas);
           renderContainer.appendChild(pageWrapper);
 
-          // Render PDF at 3x Resolution
           page.render({ canvasContext: pCtx, viewport: hdViewport });
           attachDrawingListeners(dCanvas, pageWrapper);
         });
@@ -399,6 +410,7 @@
     function setActive(btn) {
       document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
+      updateCanvasTouchBehavior();
     }
 
     document.getElementById('btn-pen').addEventListener('click', () => {
