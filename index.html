@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
   <title>TeachBoard Smart Pro</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    /* Complete CSS Reset - Removes Ghost Backdrop Layers */
     html, body {
       width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
       background-color: #64748b !important; font-family: sans-serif;
@@ -18,9 +17,13 @@
     #board-wrapper { 
       width: 100vw; height: 100vh; overflow: auto; display: flex; 
       flex-direction: column; align-items: center; padding: 20px 0; box-sizing: border-box;
+      touch-action: pan-x pan-y;
     }
 
-    #pdf-render-container { display: flex; flex-direction: column; gap: 16px; align-items: center; width: 100%; }
+    #pdf-render-container { 
+      display: flex; flex-direction: column; gap: 16px; align-items: center; width: 100%; 
+      transform-origin: center top; transition: transform 0.05s linear;
+    }
 
     .page-wrapper {
       position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.3); background: #ffffff;
@@ -56,11 +59,11 @@
       background-size: 20px 20px !important;
     }
 
-    canvas { display: block; position: absolute; top: 0; left: 0; }
+    canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
     .pdf-canvas-layer { z-index: 1; }
     .draw-canvas-layer { z-index: 2; touch-action: none; }
 
-    /* Single Eye Button */
+    /* Floating Controls */
     #eye-btn {
       position: fixed; top: 12px; left: 12px; z-index: 9999;
       width: 40px; height: 40px; border-radius: 50%; background: #ffffff;
@@ -68,7 +71,6 @@
       display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer;
     }
 
-    /* Isolated Standalone Left Toolbar (Clean & Thin) */
     #main-toolbar {
       position: fixed; top: 60px; left: 12px; z-index: 9998;
       width: 40px; background: #ffffff !important; border-radius: 20px;
@@ -85,7 +87,6 @@
     }
     .t-btn.active { background: #2563eb; color: #ffffff; }
 
-    /* Submenu Panels */
     .pop-panel {
       position: fixed; top: 60px; left: 60px; z-index: 9997; width: 170px;
       background: #ffffff; border-radius: 14px; padding: 8px; display: none; flex-direction: column; gap: 4px;
@@ -99,7 +100,6 @@
     }
     .pop-item:hover { background: #e0e7ff; color: #2563eb; }
 
-    /* Calculator Popup */
     #calc-box {
       position: fixed; top: 60px; left: 60px; width: 200px; background: #ffffff; border-radius: 14px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.25); border: 1px solid #cbd5e1; padding: 10px; z-index: 9999; display: none;
@@ -222,6 +222,7 @@
     const historyStore = new WeakMap();
 
     const renderContainer = document.getElementById('pdf-render-container');
+    const boardWrapper = document.getElementById('board-wrapper');
     const mainToolbar = document.getElementById('main-toolbar');
     const bottomDock = document.getElementById('bottom-dock');
     const eyeBtn = document.getElementById('eye-btn');
@@ -259,6 +260,7 @@
     document.getElementById('btn-add-board').addEventListener('click', createBlankPage);
 
     function createBlankPage() {
+      const dpr = window.devicePixelRatio || 2;
       const width = window.innerWidth * 0.9 * currentScale;
       const height = window.innerHeight * 0.8 * currentScale;
 
@@ -269,8 +271,11 @@
 
       const dCanvas = document.createElement('canvas');
       dCanvas.className = 'draw-canvas-layer';
-      dCanvas.width = width;
-      dCanvas.height = height;
+      
+      // High-DPI Canvas Scaling for Crisp Drawing
+      dCanvas.width = width * dpr;
+      dCanvas.height = height * dpr;
+      dCanvas.getContext('2d').scale(dpr, dpr);
 
       historyStore.set(dCanvas, { stack: [], step: -1 });
 
@@ -290,6 +295,9 @@
         return;
       }
 
+      // High DPI Resolution multiplier for HD PDF Rendering
+      const dpr = Math.max(window.devicePixelRatio || 2, 2);
+
       for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
         pdfDoc.getPage(pageNum).then(page => {
           const viewport = page.getViewport({ scale: currentScale });
@@ -299,16 +307,21 @@
           pageWrapper.style.width = `${viewport.width}px`;
           pageWrapper.style.height = `${viewport.height}px`;
 
+          // Canvas 1: PDF Background Layer (HD Rendered)
           const pCanvas = document.createElement('canvas');
           pCanvas.className = 'pdf-canvas-layer';
-          pCanvas.width = viewport.width;
-          pCanvas.height = viewport.height;
+          pCanvas.width = viewport.width * dpr;
+          pCanvas.height = viewport.height * dpr;
           const pCtx = pCanvas.getContext('2d');
+          pCtx.scale(dpr, dpr);
 
+          // Canvas 2: Drawing Layer
           const dCanvas = document.createElement('canvas');
           dCanvas.className = 'draw-canvas-layer';
-          dCanvas.width = viewport.width;
-          dCanvas.height = viewport.height;
+          dCanvas.width = viewport.width * dpr;
+          dCanvas.height = viewport.height * dpr;
+          const dCtx = dCanvas.getContext('2d');
+          dCtx.scale(dpr, dpr);
 
           historyStore.set(dCanvas, { stack: [], step: -1 });
 
@@ -316,6 +329,7 @@
           pageWrapper.appendChild(dCanvas);
           renderContainer.appendChild(pageWrapper);
 
+          // Render PDF at High Quality
           page.render({ canvasContext: pCtx, viewport: viewport });
           attachDrawingListeners(dCanvas, pageWrapper);
         });
@@ -443,9 +457,45 @@
       });
     });
 
-    // Zoom
-    document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.15; renderAllPages(); });
-    document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.5) { currentScale -= 0.15; renderAllPages(); } });
+    // Zoom Buttons
+    document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.2; renderAllPages(); });
+    document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.4) { currentScale -= 0.2; renderAllPages(); } });
+
+    // Touch Pinch-to-Zoom Gesture Implementation
+    let initialTouchDist = null;
+    let initialScale = 1.0;
+
+    function getTouchDistance(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    boardWrapper.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        initialTouchDist = getTouchDistance(e.touches);
+        initialScale = currentScale;
+      }
+    }, { passive: true });
+
+    boardWrapper.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && initialTouchDist) {
+        const currentDist = getTouchDistance(e.touches);
+        const factor = currentDist / initialTouchDist;
+        const newScale = Math.min(Math.max(initialScale * factor, 0.4), 3.0);
+        
+        if (Math.abs(newScale - currentScale) > 0.05) {
+          currentScale = newScale;
+          renderAllPages();
+        }
+      }
+    }, { passive: true });
+
+    boardWrapper.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        initialTouchDist = null;
+      }
+    });
 
     // Text Creation
     function createInlineText(wrapper, ctx, x, y) {
@@ -474,7 +524,7 @@
       input.addEventListener('blur', finalizeText);
     }
 
-    // Attach Listeners
+    // Attach Drawing Listeners
     function attachDrawingListeners(canvas, wrapper) {
       const ctx = canvas.getContext('2d');
 
@@ -486,7 +536,7 @@
       }
 
       function startDraw(e) {
-        if (currentTool === 'off') return;
+        if (currentTool === 'off' || (e.touches && e.touches.length > 1)) return;
         const pos = getPos(e);
         startX = pos.x;
         startY = pos.y;
@@ -503,7 +553,7 @@
       }
 
       function draw(e) {
-        if (!isDrawing || currentTool === 'off' || activeDrawCanvas !== canvas) return;
+        if (!isDrawing || currentTool === 'off' || activeDrawCanvas !== canvas || (e.touches && e.touches.length > 1)) return;
         const pos = getPos(e);
         const color = document.getElementById('pen-color').value;
 
