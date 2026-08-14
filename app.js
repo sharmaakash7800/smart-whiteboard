@@ -6,76 +6,114 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
 let pdfDoc = null;
 let currentScale = 1.0;
-let currentTool = 'pen'; 
-let currentShape = 'none';
+let currentTool = 'off'; // Default: Pen OFF (Scroll/Read Mode)
+let activeDrawCanvas = null;
+let activeDrawCtx = null;
 let isDrawing = false;
 let startX = 0, startY = 0;
-let snapshot = null;
 
-let pagesData = [null];
-let currentPageIndex = 0; 
-let isPdfMode = false;
-let renderTask = null;
-
-// Multi-touch / Pinch Zoom Variables
-let initialPinchDistance = null;
-let initialScale = 1.0;
-
-let historyStack = [];
-let historyStep = -1;
-const MAX_HISTORY = 30;
-
-const pdfCanvas = document.getElementById('pdf-canvas');
-const pdfCtx = pdfCanvas.getContext('2d');
-const drawCanvas = document.getElementById('draw-canvas');
-const drawCtx = drawCanvas.getContext('2d');
-const container = document.getElementById('canvas-container');
-const laserDot = document.getElementById('laser-dot');
-
+const renderContainer = document.getElementById('pdf-render-container');
 const leftToolbar = document.getElementById('left-toolbar');
 const bottomDock = document.getElementById('bottom-dock');
-
-function hideToolbars() {
-  leftToolbar.classList.add('autohide');
-  bottomDock.classList.add('autohide');
-  flyoutMenu.classList.remove('open');
-}
-
-function showToolbars() {
-  leftToolbar.classList.remove('autohide');
-  bottomDock.classList.remove('autohide');
-}
-
-function saveHistoryState() {
-  historyStep++;
-  if (historyStep < historyStack.length) {
-    historyStack = historyStack.slice(0, historyStep);
-  }
-  historyStack.push(drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
-  if (historyStack.length > MAX_HISTORY) {
-    historyStack.shift();
-    historyStep--;
-  }
-}
-
-document.getElementById('btn-undo').addEventListener('click', () => {
-  if (historyStep > 0) {
-    historyStep--;
-    drawCtx.putImageData(historyStack[historyStep], 0, 0);
-  } else if (historyStep === 0) {
-    historyStep = -1;
-    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-  }
-});
-
-document.getElementById('btn-redo').addEventListener('click', () => {
-  if (historyStep < historyStack.length - 1) {
-    historyStep++;
-    drawCtx.putImageData(historyStack[historyStep], 0, 0);
-  }
-});
-
+const eyeBtn = document.getElementById('eye-toggle-btn');
 const flyoutMenu = document.getElementById('flyout-menu');
+
+// Manual Eye Button Hide/Show Toggle (No Auto-Hide Timer)
+eyeBtn.addEventListener('click', () => {
+  const isHidden = leftToolbar.classList.toggle('hidden-ui');
+  bottomDock.classList.toggle('hidden-ui');
+  flyoutMenu.classList.remove('open');
+  
+  const icon = eyeBtn.querySelector('i');
+  if (isHidden) {
+    icon.className = 'fa-solid fa-eye-slash';
+  } else {
+    icon.className = 'fa-solid fa-eye';
+  }
+});
+
+// PDF File Selection & Continuous Page Render Setup
+document.getElementById('file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file && file.type === "application/pdf") {
+    const fileReader = new FileReader();
+    fileReader.onload = function() {
+      const typedarray = new Uint8Array(this.result);
+      pdfjsLib.getDocument(typedarray).promise.then(doc => {
+        pdfDoc = doc;
+        renderAllPages();
+      });
+    };
+    fileReader.readAsArrayBuffer(file);
+  }
+});
+
+// Render All Pages Vertically for Continuous Scrolling
+function renderAllPages() {
+  renderContainer.innerHTML = '';
+  document.getElementById('zoom-text').textContent = `${Math.round(currentScale * 100)}%`;
+
+  if (!pdfDoc) return;
+
+  for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+    pdfDoc.getPage(pageNum).then(page => {
+      const viewport = page.getViewport({ scale: currentScale });
+
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = 'page-wrapper';
+      pageWrapper.style.width = `${viewport.width}px`;
+      pageWrapper.style.height = `${viewport.height}px`;
+
+      const pCanvas = document.createElement('canvas');
+      pCanvas.className = 'pdf-canvas-layer';
+      pCanvas.width = viewport.width;
+      pCanvas.height = viewport.height;
+      const pCtx = pCanvas.getContext('2d');
+
+      const dCanvas = document.createElement('canvas');
+      dCanvas.className = 'draw-canvas-layer';
+      dCanvas.width = viewport.width;
+      dCanvas.height = viewport.height;
+
+      pageWrapper.appendChild(pCanvas);
+      pageWrapper.appendChild(dCanvas);
+      renderContainer.appendChild(pageWrapper);
+
+      page.render({ canvasContext: pCtx, viewport: viewport });
+
+      // Add Pointer/Touch Listeners for Drawings
+      attachDrawingListeners(dCanvas);
+    });
+  }
+}
+
+// Tool Active Toggles (Pen OFF by Default)
+function setActiveBtn(btn) {
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+document.getElementById('btn-pen').addEventListener('click', () => {
+  if (currentTool === 'pen') {
+    currentTool = 'off';
+    setActiveBtn(null);
+  } else {
+    currentTool = 'pen';
+    setActiveBtn(document.getElementById('btn-pen'));
+  }
+});
+
+document.getElementById('btn-eraser').addEventListener('click', () => {
+  if (currentTool === 'eraser') {
+    currentTool = 'off';
+    setActiveBtn(null);
+  } else {
+    currentTool = 'eraser';
+    setActiveBtn(document.getElementById('btn-eraser'));
+  }
+});
+
+// Flyout Tool Selector
 document.getElementById('btn-tools-menu').addEventListener('click', (e) => {
   e.stopPropagation();
   flyoutMenu.classList.toggle('open');
@@ -85,279 +123,84 @@ document.addEventListener('click', () => flyoutMenu.classList.remove('open'));
 document.querySelectorAll('.flyout-item').forEach(item => {
   item.addEventListener('click', () => {
     const action = item.getAttribute('data-action');
-    if (['line', 'arrow', 'rect', 'circle'].includes(action)) {
-      currentTool = 'shape';
-      currentShape = action;
-      setActiveBtn(document.getElementById('btn-tools-menu'));
-    } else if (action === 'pointer') {
-      currentTool = 'pointer';
-      setActiveBtn(document.getElementById('btn-tools-menu'));
-    } else if (action === 'calculator') {
-      document.getElementById('calc-tool').style.display = 'block';
-    } else if (action === 'text') {
-      currentTool = 'text';
-      setActiveBtn(document.getElementById('btn-tools-menu'));
-    } else if (action.startsWith('bg-')) {
-      const bgMode = action.replace('bg-', '');
-      container.className = `bg-${bgMode}`;
-      isPdfMode = false;
-      renderPage();
-    } else if (action === 'clear') {
-      drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-      pagesData[currentPageIndex] = null;
-      document.querySelectorAll('.sticky-note, .mind-node').forEach(n => n.remove());
-      saveHistoryState();
-    }
+    currentTool = action;
+    setActiveBtn(document.getElementById('btn-tools-menu'));
   });
 });
 
-function calcInput(val) {
-  const display = document.getElementById('calc-display');
-  if (val === 'C') display.value = '0';
-  else if (display.value === '0') display.value = val;
-  else display.value += val;
-}
-function calcSolve() {
-  const display = document.getElementById('calc-display');
-  try { display.value = eval(display.value); } catch { display.value = 'Error'; }
-}
-document.getElementById('close-calc').addEventListener('click', () => {
-  document.getElementById('calc-tool').style.display = 'none';
+// Clear All Drawings across All Pages
+document.getElementById('btn-clear').addEventListener('click', () => {
+  document.querySelectorAll('.draw-canvas-layer').forEach(c => {
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+  });
 });
 
-function setActiveBtn(btn) {
-  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
-document.getElementById('btn-pen').addEventListener('click', () => {
-  currentTool = 'pen';
-  currentShape = 'none';
-  laserDot.style.display = 'none';
-  setActiveBtn(document.getElementById('btn-pen'));
+// Zoom Controls (Continuous Scale Update)
+document.getElementById('zoom-in').addEventListener('click', () => {
+  currentScale += 0.15;
+  renderAllPages();
 });
 
-document.getElementById('btn-eraser').addEventListener('click', () => {
-  currentTool = 'eraser';
-  laserDot.style.display = 'none';
-  setActiveBtn(document.getElementById('btn-eraser'));
-});
-
-document.getElementById('file-input').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (file && file.type === "application/pdf") {
-    const fileReader = new FileReader();
-    fileReader.onload = function() {
-      const typedarray = new Uint8Array(this.result);
-      pdfjsLib.getDocument(typedarray).promise.then(doc => {
-        pdfDoc = doc;
-        isPdfMode = true;
-        currentPageIndex = 0;
-        currentScale = 1.0;
-        renderPage();
-      });
-    };
-    fileReader.readAsArrayBuffer(file);
+document.getElementById('zoom-out').addEventListener('click', () => {
+  if (currentScale > 0.5) {
+    currentScale -= 0.15;
+    renderAllPages();
   }
 });
 
-function renderPage() {
-  saveCurrentDrawing();
-  const totalPages = isPdfMode && pdfDoc ? pdfDoc.numPages : pagesData.length;
-  document.getElementById('page-num').textContent = `${currentPageIndex + 1}/${totalPages}`;
-  document.getElementById('zoom-text').textContent = `${Math.round(currentScale * 100)}%`;
+// Attach Touch & Mouse Drawing Actions per Page Layer
+function attachDrawingListeners(canvas) {
+  const ctx = canvas.getContext('2d');
 
-  if (isPdfMode && pdfDoc) {
-    if (renderTask) {
-      renderTask.cancel();
-    }
-
-    pdfDoc.getPage(currentPageIndex + 1).then(page => {
-      const viewport = page.getViewport({ scale: currentScale });
-
-      pdfCanvas.height = viewport.height;
-      pdfCanvas.width = viewport.width;
-      drawCanvas.height = viewport.height;
-      drawCanvas.width = viewport.width;
-
-      container.style.width = `${viewport.width}px`;
-      container.style.height = `${viewport.height}px`;
-
-      pdfCtx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
-      const renderContext = { canvasContext: pdfCtx, viewport: viewport };
-      renderTask = page.render(renderContext);
-
-      renderTask.promise.then(() => {
-        renderTask = null;
-        restoreDrawing();
-      }).catch(err => {
-        if (err.name !== 'RenderingCancelledException') {
-          console.error(err);
-        }
-      });
-    });
-  } else {
-    const width = window.innerWidth * currentScale;
-    const height = window.innerHeight * currentScale;
-
-    pdfCanvas.width = width;
-    pdfCanvas.height = height;
-    drawCanvas.width = width;
-    drawCanvas.height = height;
-
-    container.style.width = `${width}px`;
-    container.style.height = `${height}px`;
-
-    pdfCtx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
-    restoreDrawing();
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
   }
-}
 
-function saveCurrentDrawing() {
-  pagesData[currentPageIndex] = drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
-}
-
-function restoreDrawing() {
-  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-  if (pagesData[currentPageIndex]) {
-    drawCtx.putImageData(pagesData[currentPageIndex], 0, 0);
-  }
-}
-
-document.getElementById('add-page').addEventListener('click', () => {
-  saveCurrentDrawing();
-  pagesData.push(null);
-  currentPageIndex = pagesData.length - 1;
-  isPdfMode = false;
-  renderPage();
-});
-
-document.getElementById('prev').addEventListener('click', () => { if (currentPageIndex > 0) { currentPageIndex--; renderPage(); } });
-document.getElementById('next').addEventListener('click', () => {
-  const total = isPdfMode && pdfDoc ? pdfDoc.numPages : pagesData.length;
-  if (currentPageIndex < total - 1) { currentPageIndex++; renderPage(); }
-});
-
-document.getElementById('zoom-in').addEventListener('click', () => { 
-  currentScale += 0.2; 
-  renderPage(); 
-});
-
-document.getElementById('zoom-out').addEventListener('click', () => { 
-  if (currentScale > 0.4) { 
-    currentScale -= 0.2; 
-    renderPage(); 
-  } 
-});
-
-function getPos(e) {
-  const rect = drawCanvas.getBoundingClientRect();
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  return { x: clientX - rect.left, y: clientY - rect.top };
-}
-
-// Distance Helper for Pinch Gesture
-function getDistance(touches) {
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-function handleTouchStart(e) {
-  if (e.touches.length === 2) {
-    // 2 Fingers detected -> Enable Pinch-to-Zoom Mode
-    isDrawing = false;
-    initialPinchDistance = getDistance(e.touches);
-    initialScale = currentScale;
-  } else if (e.touches.length === 1) {
-    // 1 Finger -> Drawing Mode
-    startDraw(e);
-  }
-}
-
-function handleTouchMove(e) {
-  if (e.touches.length === 2 && initialPinchDistance) {
-    // Zoom Calculation based on Pinch
-    const currentDistance = getDistance(e.touches);
-    const newScale = initialScale * (currentDistance / initialPinchDistance);
+  function startDraw(e) {
+    if (currentTool === 'off') return; // Do nothing if Pen is OFF (Scroll Mode)
     
-    if (newScale >= 0.4 && newScale <= 3.0) {
-      currentScale = newScale;
-      renderPage();
+    isDrawing = true;
+    activeDrawCanvas = canvas;
+    activeDrawCtx = ctx;
+
+    const pos = getPos(e);
+    startX = pos.x;
+    startY = pos.y;
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+  }
+
+  function draw(e) {
+    if (!isDrawing || currentTool === 'off' || activeDrawCanvas !== canvas) return;
+    const pos = getPos(e);
+    const color = document.getElementById('pen-color').value;
+
+    if (currentTool === 'pen') {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    } else if (currentTool === 'eraser') {
+      ctx.clearRect(pos.x - 15, pos.y - 15, 30, 30);
     }
-  } else if (e.touches.length === 1) {
-    draw(e);
-  }
-}
-
-function handleTouchEnd(e) {
-  if (e.touches.length < 2) {
-    initialPinchDistance = null;
-  }
-  stopDraw();
-}
-
-function startDraw(e) {
-  hideToolbars();
-  const pos = getPos(e);
-  startX = pos.x;
-  startY = pos.y;
-
-  if (currentTool === 'pointer') {
-    laserDot.style.display = 'block';
-    laserDot.style.left = `${startX - 6}px`;
-    laserDot.style.top = `${startY - 6}px`;
-    return;
   }
 
-  isDrawing = true;
-  drawCtx.beginPath();
-  drawCtx.moveTo(startX, startY);
-  snapshot = drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
-}
-
-function draw(e) {
-  if (!isDrawing) return;
-  const pos = getPos(e);
-
-  if (currentTool === 'pointer') {
-    laserDot.style.display = 'block';
-    laserDot.style.left = `${pos.x - 6}px`;
-    laserDot.style.top = `${pos.y - 6}px`;
-    return;
-  }
-
-  const color = document.getElementById('pen-color').value;
-
-  if (currentTool === 'pen') {
-    drawCtx.strokeStyle = color;
-    drawCtx.lineWidth = 3;
-    drawCtx.lineCap = 'round';
-    drawCtx.lineTo(pos.x, pos.y);
-    drawCtx.stroke();
-  } else if (currentTool === 'eraser') {
-    drawCtx.clearRect(pos.x - 15, pos.y - 15, 30, 30);
-  }
-}
-
-function stopDraw() { 
-  if (isDrawing) {
+  function stopDraw() {
     isDrawing = false;
-    saveHistoryState(); 
+    activeDrawCanvas = null;
   }
-  setTimeout(showToolbars, 1200);
+
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', stopDraw);
+
+  canvas.addEventListener('touchstart', startDraw, { passive: true });
+  canvas.addEventListener('touchmove', draw, { passive: true });
+  canvas.addEventListener('touchend', stopDraw);
 }
-
-// Mouse Listeners
-drawCanvas.addEventListener('mousedown', startDraw);
-drawCanvas.addEventListener('mousemove', draw);
-drawCanvas.addEventListener('mouseup', stopDraw);
-
-// Touch Listeners (Supporting Pinch-to-Zoom)
-drawCanvas.addEventListener('touchstart', handleTouchStart, { passive: true });
-drawCanvas.addEventListener('touchmove', handleTouchMove, { passive: true });
-drawCanvas.addEventListener('touchend', handleTouchEnd);
-
-window.addEventListener('resize', renderPage);
-renderPage();
