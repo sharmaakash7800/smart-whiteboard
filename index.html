@@ -2,31 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+  <!-- Mobile Screen Lock to prevent accidental page zoom -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
   <title>TeachBoard Smart Pro</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
+    /* Mobile-Optimized CSS Reset */
     html, body {
-      width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
-      background-color: #64748b !important; font-family: sans-serif;
+      width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;
+      background-color: #475569 !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: none; /* Prevents browser pull-to-refresh & native scroll conflicts */
     }
 
     #board-wrapper { 
       width: 100vw; height: 100vh; overflow: auto; display: flex; 
-      flex-direction: column; align-items: center; padding: 20px 0; box-sizing: border-box;
+      flex-direction: column; align-items: center; padding: 12px 0; box-sizing: border-box;
+      -webkit-overflow-scrolling: touch;
       touch-action: pan-x pan-y;
     }
 
     #pdf-render-container { 
-      display: flex; flex-direction: column; gap: 16px; align-items: center; width: 100%; 
-      transform-origin: center top; transition: transform 0.05s linear;
+      display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; 
+      transform-origin: center top; will-change: transform;
     }
 
     .page-wrapper {
-      position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.3); background: #ffffff;
+      position: relative; box-shadow: 0 6px 20px rgba(0,0,0,0.3); background: #ffffff;
+      border-radius: 4px; overflow: hidden;
     }
 
     /* 12 Color & Grid Backgrounds */
@@ -41,56 +46,56 @@
     .bg-grid-white { 
       background-color: #ffffff !important; 
       background-image: linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px) !important;
-      background-size: 24px 24px !important;
+      background-size: 20px 20px !important;
     }
     .bg-grid-yellow { 
       background-color: #fef08a !important; 
       background-image: linear-gradient(#fde047 1px, transparent 1px), linear-gradient(90deg, #fde047 1px, transparent 1px) !important;
-      background-size: 24px 24px !important;
+      background-size: 20px 20px !important;
     }
     .bg-grid-dark { 
       background-color: #1a1a1a !important; 
       background-image: linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px) !important;
-      background-size: 24px 24px !important;
+      background-size: 20px 20px !important;
     }
     .bg-dots {
       background-color: #ffffff !important;
       background-image: radial-gradient(#94a3b8 1.5px, transparent 1.5px) !important;
-      background-size: 20px 20px !important;
+      background-size: 18px 18px !important;
     }
 
     canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
     .pdf-canvas-layer { z-index: 1; }
     .draw-canvas-layer { z-index: 2; touch-action: none; }
 
-    /* Floating Controls */
+    /* Floating Fixed Toolbar & Controls */
     #eye-btn {
-      position: fixed; top: 12px; left: 12px; z-index: 9999;
-      width: 40px; height: 40px; border-radius: 50%; background: #ffffff;
-      color: #2563eb; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer;
+      position: fixed; top: 10px; left: 10px; z-index: 9999;
+      width: 42px; height: 42px; border-radius: 50%; background: #ffffff;
+      color: #2563eb; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer;
     }
 
     #main-toolbar {
-      position: fixed; top: 60px; left: 12px; z-index: 9998;
-      width: 40px; background: #ffffff !important; border-radius: 20px;
-      display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 6px;
+      position: fixed; top: 60px; left: 10px; z-index: 9998;
+      width: 42px; background: #ffffff !important; border-radius: 21px;
+      display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 6px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important; border: 1px solid #cbd5e1 !important;
     }
 
     .ui-hidden { display: none !important; }
 
     .t-btn {
-      background: transparent; color: #475569; border: none; width: 32px; height: 32px;
+      background: transparent; color: #475569; border: none; width: 34px; height: 34px;
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      font-size: 14px; cursor: pointer;
+      font-size: 15px; cursor: pointer;
     }
     .t-btn.active { background: #2563eb; color: #ffffff; }
 
     .pop-panel {
-      position: fixed; top: 60px; left: 60px; z-index: 9997; width: 170px;
+      position: fixed; top: 60px; left: 58px; z-index: 9997; width: 160px;
       background: #ffffff; border-radius: 14px; padding: 8px; display: none; flex-direction: column; gap: 4px;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.2); border: 1px solid #cbd5e1; max-height: 70vh; overflow-y: auto;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.2); border: 1px solid #cbd5e1; max-height: 65vh; overflow-y: auto;
     }
     .pop-panel.open { display: flex; }
 
@@ -101,7 +106,7 @@
     .pop-item:hover { background: #e0e7ff; color: #2563eb; }
 
     #calc-box {
-      position: fixed; top: 60px; left: 60px; width: 200px; background: #ffffff; border-radius: 14px;
+      position: fixed; top: 60px; left: 58px; width: 200px; background: #ffffff; border-radius: 14px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.25); border: 1px solid #cbd5e1; padding: 10px; z-index: 9999; display: none;
     }
     .c-screen { width: 100%; height: 34px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0; text-align: right; padding: 6px; font-size: 15px; font-weight: bold; margin-bottom: 6px; }
@@ -119,7 +124,7 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.15); border: 1px solid #cbd5e1;
     }
 
-    input[type="color"] { border: none; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; background: none; }
+    input[type="color"] { border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; background: none; }
     input[type="file"] { display: none; }
   </style>
 </head>
@@ -260,9 +265,9 @@
     document.getElementById('btn-add-board').addEventListener('click', createBlankPage);
 
     function createBlankPage() {
-      const dpr = window.devicePixelRatio || 2;
-      const width = window.innerWidth * 0.9 * currentScale;
-      const height = window.innerHeight * 0.8 * currentScale;
+      const dpr = Math.min(window.devicePixelRatio || 1.5, 2);
+      const width = Math.min(window.innerWidth * 0.95, 800) * currentScale;
+      const height = (window.innerHeight * 0.8) * currentScale;
 
       const pageWrapper = document.createElement('div');
       pageWrapper.className = `page-wrapper bg-${currentBg}`;
@@ -272,7 +277,6 @@
       const dCanvas = document.createElement('canvas');
       dCanvas.className = 'draw-canvas-layer';
       
-      // High-DPI Canvas Scaling for Crisp Drawing
       dCanvas.width = width * dpr;
       dCanvas.height = height * dpr;
       dCanvas.getContext('2d').scale(dpr, dpr);
@@ -295,8 +299,8 @@
         return;
       }
 
-      // High DPI Resolution multiplier for HD PDF Rendering
-      const dpr = Math.max(window.devicePixelRatio || 2, 2);
+      // Mobile Performance Optimized DPR Scaling
+      const dpr = Math.min(window.devicePixelRatio || 1.5, 2);
 
       for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
         pdfDoc.getPage(pageNum).then(page => {
@@ -307,7 +311,7 @@
           pageWrapper.style.width = `${viewport.width}px`;
           pageWrapper.style.height = `${viewport.height}px`;
 
-          // Canvas 1: PDF Background Layer (HD Rendered)
+          // HD PDF Background Canvas Layer
           const pCanvas = document.createElement('canvas');
           pCanvas.className = 'pdf-canvas-layer';
           pCanvas.width = viewport.width * dpr;
@@ -315,7 +319,7 @@
           const pCtx = pCanvas.getContext('2d');
           pCtx.scale(dpr, dpr);
 
-          // Canvas 2: Drawing Layer
+          // Smooth Mobile Drawing Canvas Layer
           const dCanvas = document.createElement('canvas');
           dCanvas.className = 'draw-canvas-layer';
           dCanvas.width = viewport.width * dpr;
@@ -329,7 +333,6 @@
           pageWrapper.appendChild(dCanvas);
           renderContainer.appendChild(pageWrapper);
 
-          // Render PDF at High Quality
           page.render({ canvasContext: pCtx, viewport: viewport });
           attachDrawingListeners(dCanvas, pageWrapper);
         });
@@ -364,7 +367,7 @@
       h.step++;
       if (h.step < h.stack.length) h.stack = h.stack.slice(0, h.step);
       h.stack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-      if (h.stack.length > 20) { h.stack.shift(); h.step--; }
+      if (h.stack.length > 15) { h.stack.shift(); h.step--; }
     }
 
     // Undo / Redo
@@ -457,45 +460,9 @@
       });
     });
 
-    // Zoom Buttons
-    document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.2; renderAllPages(); });
-    document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.4) { currentScale -= 0.2; renderAllPages(); } });
-
-    // Touch Pinch-to-Zoom Gesture Implementation
-    let initialTouchDist = null;
-    let initialScale = 1.0;
-
-    function getTouchDistance(touches) {
-      const dx = touches[0].clientX - touches[1].clientX;
-      const dy = touches[0].clientY - touches[1].clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    boardWrapper.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
-        initialTouchDist = getTouchDistance(e.touches);
-        initialScale = currentScale;
-      }
-    }, { passive: true });
-
-    boardWrapper.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2 && initialTouchDist) {
-        const currentDist = getTouchDistance(e.touches);
-        const factor = currentDist / initialTouchDist;
-        const newScale = Math.min(Math.max(initialScale * factor, 0.4), 3.0);
-        
-        if (Math.abs(newScale - currentScale) > 0.05) {
-          currentScale = newScale;
-          renderAllPages();
-        }
-      }
-    }, { passive: true });
-
-    boardWrapper.addEventListener('touchend', (e) => {
-      if (e.touches.length < 2) {
-        initialTouchDist = null;
-      }
-    });
+    // Smooth Zoom Buttons
+    document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.15; renderAllPages(); });
+    document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.5) { currentScale -= 0.15; renderAllPages(); } });
 
     // Text Creation
     function createInlineText(wrapper, ctx, x, y) {
@@ -505,16 +472,16 @@
       input.style.left = `${x}px`;
       input.style.top = `${y}px`;
       input.style.color = document.getElementById('pen-color').value;
-      input.style.fontSize = `${18 * currentScale}px`;
+      input.style.fontSize = `${16 * currentScale}px`;
 
       wrapper.appendChild(input);
       setTimeout(() => input.focus(), 50);
 
       function finalizeText() {
         if (input.value.trim() !== '') {
-          ctx.font = `${18 * currentScale}px Arial`;
+          ctx.font = `${16 * currentScale}px Arial`;
           ctx.fillStyle = document.getElementById('pen-color').value;
-          ctx.fillText(input.value, x, y + (16 * currentScale));
+          ctx.fillText(input.value, x, y + (14 * currentScale));
           saveHistory(ctx.canvas);
         }
         input.remove();
@@ -524,7 +491,7 @@
       input.addEventListener('blur', finalizeText);
     }
 
-    // Attach Drawing Listeners
+    // Attach Mobile Optimized Touch & Mouse Listeners
     function attachDrawingListeners(canvas, wrapper) {
       const ctx = canvas.getContext('2d');
 
@@ -536,7 +503,9 @@
       }
 
       function startDraw(e) {
+        // Prevent drawing when 2 fingers (Pinch/Scroll) are detected
         if (currentTool === 'off' || (e.touches && e.touches.length > 1)) return;
+        
         const pos = getPos(e);
         startX = pos.x;
         startY = pos.y;
@@ -554,6 +523,7 @@
 
       function draw(e) {
         if (!isDrawing || currentTool === 'off' || activeDrawCanvas !== canvas || (e.touches && e.touches.length > 1)) return;
+        
         const pos = getPos(e);
         const color = document.getElementById('pen-color').value;
 
@@ -564,7 +534,7 @@
           ctx.lineTo(pos.x, pos.y);
           ctx.stroke();
         } else if (currentTool === 'eraser') {
-          ctx.clearRect(pos.x - 15, pos.y - 15, 30, 30);
+          ctx.clearRect(pos.x - 12, pos.y - 12, 24, 24);
         } else if (currentTool === 'shape') {
           ctx.putImageData(snapshot, 0, 0);
           ctx.strokeStyle = color;
@@ -588,13 +558,15 @@
 
       function stopDraw() { if (isDrawing) { isDrawing = false; saveHistory(canvas); } }
 
-      canvas.addEventListener('mousedown', startDraw);
-      canvas.addEventListener('mousemove', draw);
-      canvas.addEventListener('mouseup', stopDraw);
-
+      // Touch Events for Smooth Mobile Response
       canvas.addEventListener('touchstart', startDraw, { passive: true });
       canvas.addEventListener('touchmove', draw, { passive: true });
       canvas.addEventListener('touchend', stopDraw);
+
+      // Mouse Fallbacks
+      canvas.addEventListener('mousedown', startDraw);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDraw);
     }
 
     renderAllPages();
