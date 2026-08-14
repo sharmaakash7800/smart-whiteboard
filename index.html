@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#64748b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="TeachBoard">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <title>TeachBoard Smart Pro HD</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -11,15 +17,16 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 100vw; height: 100vh; overflow: hidden;
+      width: 100%; height: 100%; min-height: 100dvh; overflow: hidden;
       background-color: #64748b !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     #board-wrapper { 
-      width: 100vw; height: 100vh; overflow-y: auto; overflow-x: auto; display: flex; 
+      width: 100%; height: 100dvh; overflow-y: auto; overflow-x: auto; display: flex; 
       flex-direction: column; align-items: center; padding: 16px 0;
       -webkit-overflow-scrolling: touch;
-      touch-action: pan-x pan-y !important;
+      touch-action: pan-x pan-y pinch-zoom !important;
+      overscroll-behavior: contain;
     }
 
     #pdf-render-container { 
@@ -67,11 +74,11 @@
     .draw-canvas-layer { 
       z-index: 2; 
       pointer-events: none; 
-      touch-action: pan-y; 
+      touch-action: pan-y pinch-zoom; 
     }
     .draw-canvas-layer.drawing-active { 
       pointer-events: auto !important; 
-      touch-action: none !important; 
+      touch-action: pan-y pinch-zoom !important; 
     }
 
     /* FIXED NON-SCALABLE SIDEBAR CONTAINER */
@@ -87,7 +94,8 @@
       max-width: 44px !important;
       gap: 10px !important;
       pointer-events: auto !important;
-      transform: none !important; /* Prevents Browser Zoom Scaling */
+      transform-origin: top left !important;
+      will-change: left, top, transform;
     }
 
     #eye-btn {
@@ -171,12 +179,13 @@
 
     #bottom-dock {
       position: fixed !important; 
-      bottom: 14px !important; 
-      right: 14px !important; 
+      bottom: auto !important; 
+      right: auto !important; 
       z-index: 999998 !important; 
       background: #ffffff;
       border-radius: 20px; padding: 4px 8px; display: flex; gap: 4px; align-items: center;
       box-shadow: 0 4px 15px rgba(0,0,0,0.15); border: 1px solid #cbd5e1;
+      transform-origin: top left; will-change: left, top, transform;
     }
 
     input[type="color"] { border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; background: none; }
@@ -205,6 +214,7 @@
       <button class="t-btn" id="btn-shapes-trigger" title="Shapes"><i class="fa-solid fa-shapes"></i></button>
       <label class="t-btn" for="file-input" title="Open PDF"><i class="fa-solid fa-file-pdf"></i></label>
       <input type="file" id="file-input" accept="application/pdf">
+      <button class="t-btn" id="btn-install" title="Install App" style="color:#7c3aed;"><i class="fa-solid fa-download"></i></button>
       <button class="t-btn" id="btn-clear" title="Clear" style="color: #ef4444;"><i class="fa-solid fa-trash"></i></button>
       <input type="color" id="pen-color" value="#2563eb">
     </div>
@@ -284,7 +294,33 @@
 
     const historyStore = new WeakMap();
 
+    function getRenderPixelRatio() {
+      return Math.min(3, Math.max(2, window.devicePixelRatio || 1));
+    }
+
+    function syncFixedUIToVisualViewport() {
+      const vv = window.visualViewport;
+      const scale = vv ? vv.scale : 1;
+      const inv = 1 / scale;
+      const offsetLeft = vv ? vv.offsetLeft : 0;
+      const offsetTop = vv ? vv.offsetTop : 0;
+      const visibleWidth = vv ? vv.width : window.innerWidth;
+      const visibleHeight = vv ? vv.height : window.innerHeight;
+      const margin = 14;
+
+      sidebarContainer.style.left = `${offsetLeft + margin * inv}px`;
+      sidebarContainer.style.top = `${offsetTop + margin * inv}px`;
+      sidebarContainer.style.transform = `scale(${inv})`;
+
+      const dockW = bottomDock.offsetWidth || 150;
+      const dockH = bottomDock.offsetHeight || 40;
+      bottomDock.style.left = `${offsetLeft + visibleWidth - (dockW + margin) * inv}px`;
+      bottomDock.style.top = `${offsetTop + visibleHeight - (dockH + margin) * inv}px`;
+      bottomDock.style.transform = `scale(${inv})`;
+    }
+
     const renderContainer = document.getElementById('pdf-render-container');
+    const sidebarContainer = document.getElementById('sidebar-container');
     const mainToolbar = document.getElementById('main-toolbar');
     const bottomDock = document.getElementById('bottom-dock');
     const eyeBtn = document.getElementById('eye-btn');
@@ -329,7 +365,7 @@
     document.getElementById('btn-add-board').addEventListener('click', createBlankPage);
 
     function createBlankPage() {
-      const renderQuality = 3.0;
+      const renderQuality = getRenderPixelRatio();
       const width = Math.min(window.innerWidth * 0.95, 800) * currentScale;
       const height = (window.innerHeight * 0.8) * currentScale;
 
@@ -355,52 +391,58 @@
       pageWrapper.scrollIntoView({ behavior: 'smooth' });
     }
 
-    function renderAllPages() {
+    async function renderAllPages() {
       renderContainer.innerHTML = '';
       document.getElementById('zoom-text').textContent = `${Math.round(currentScale * 100)}%`;
 
       if (!pdfDoc) {
         createBlankPage();
+        syncFixedUIToVisualViewport();
         return;
       }
 
-      const renderQuality = 3.0;
+      const renderQuality = getRenderPixelRatio();
 
       for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-        pdfDoc.getPage(pageNum).then(page => {
-          const baseViewport = page.getViewport({ scale: currentScale });
-          const hdViewport = page.getViewport({ scale: currentScale * renderQuality });
+        const page = await pdfDoc.getPage(pageNum);
+        const cssViewport = page.getViewport({ scale: currentScale });
+        const renderViewport = page.getViewport({ scale: currentScale * renderQuality });
 
-          const pageWrapper = document.createElement('div');
-          pageWrapper.className = 'page-wrapper';
-          pageWrapper.style.width = `${baseViewport.width}px`;
-          pageWrapper.style.height = `${baseViewport.height}px`;
+        const pageWrapper = document.createElement('div');
+        pageWrapper.className = 'page-wrapper';
+        pageWrapper.style.width = `${cssViewport.width}px`;
+        pageWrapper.style.height = `${cssViewport.height}px`;
+        pageWrapper.style.flex = '0 0 auto';
 
-          const pCanvas = document.createElement('canvas');
-          pCanvas.className = 'pdf-canvas-layer';
-          pCanvas.width = hdViewport.width;
-          pCanvas.height = hdViewport.height;
-          const pCtx = pCanvas.getContext('2d');
+        const pCanvas = document.createElement('canvas');
+        pCanvas.className = 'pdf-canvas-layer';
+        pCanvas.width = Math.ceil(renderViewport.width);
+        pCanvas.height = Math.ceil(renderViewport.height);
+        pCanvas.style.width = `${cssViewport.width}px`;
+        pCanvas.style.height = `${cssViewport.height}px`;
+        const pCtx = pCanvas.getContext('2d', { alpha: false });
 
-          const dCanvas = document.createElement('canvas');
-          dCanvas.className = 'draw-canvas-layer';
-          if (currentTool !== 'off') dCanvas.classList.add('drawing-active');
+        const dCanvas = document.createElement('canvas');
+        dCanvas.className = 'draw-canvas-layer';
+        if (currentTool !== 'off') dCanvas.classList.add('drawing-active');
+        dCanvas.width = Math.ceil(renderViewport.width);
+        dCanvas.height = Math.ceil(renderViewport.height);
+        dCanvas.style.width = `${cssViewport.width}px`;
+        dCanvas.style.height = `${cssViewport.height}px`;
+        const dCtx = dCanvas.getContext('2d');
+        dCtx.scale(renderQuality, renderQuality);
 
-          dCanvas.width = hdViewport.width;
-          dCanvas.height = hdViewport.height;
-          const dCtx = dCanvas.getContext('2d');
-          dCtx.scale(renderQuality, renderQuality);
+        historyStore.set(dCanvas, { stack: [], step: -1 });
 
-          historyStore.set(dCanvas, { stack: [], step: -1 });
+        pageWrapper.appendChild(pCanvas);
+        pageWrapper.appendChild(dCanvas);
+        renderContainer.appendChild(pageWrapper);
 
-          pageWrapper.appendChild(pCanvas);
-          pageWrapper.appendChild(dCanvas);
-          renderContainer.appendChild(pageWrapper);
-
-          page.render({ canvasContext: pCtx, viewport: hdViewport });
-          attachDrawingListeners(dCanvas, pageWrapper);
-        });
+        await page.render({ canvasContext: pCtx, viewport: renderViewport, intent: 'display' }).promise;
+        attachDrawingListeners(dCanvas, pageWrapper);
       }
+
+      syncFixedUIToVisualViewport();
     }
 
     document.getElementById('btn-bg-trigger').addEventListener('click', (e) => {
@@ -621,6 +663,52 @@
       canvas.addEventListener('mousemove', draw);
       canvas.addEventListener('mouseup', stopDraw);
     }
+
+    // ---------------- PWA INSTALL ----------------
+    let deferredInstallPrompt = null;
+    const installBtn = document.getElementById('btn-install');
+
+    function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+    function isStandalone() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    if (isStandalone()) installBtn.classList.add('ui-hidden');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      installBtn.classList.remove('ui-hidden');
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (isStandalone()) return;
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+      } else if (isIOS()) {
+        alert('iPhone/iPad: Safari Share button → Add to Home Screen → Add');
+      } else {
+        alert('App ko HTTPS par open karein, phir browser menu → Install App / Add to Home Screen use karein.');
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      installBtn.classList.add('ui-hidden');
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.error));
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncFixedUIToVisualViewport);
+      window.visualViewport.addEventListener('scroll', syncFixedUIToVisualViewport);
+    }
+    window.addEventListener('resize', syncFixedUIToVisualViewport);
+    requestAnimationFrame(syncFixedUIToVisualViewport);
 
     renderAllPages();
   </script>
