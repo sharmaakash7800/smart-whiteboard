@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>TeachBoard Smart Pro HD</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -31,7 +31,7 @@
       border-radius: 4px; overflow: hidden;
     }
 
-    /* 12 Color & Grid Backgrounds */
+    /* 12 Background Modes */
     .bg-white { background-color: #ffffff !important; }
     .bg-yellow { background-color: #fef08a !important; }
     .bg-blue { background-color: #e0f2fe !important; }
@@ -74,25 +74,29 @@
       touch-action: none !important; 
     }
 
-    /* ZERO-MOVEMENT LOCKED SIDEBAR CONTAINER */
+    /* FIXED NON-SCALABLE SIDEBAR CONTAINER */
     #sidebar-container {
       position: fixed !important; 
       top: 14px !important; 
       left: 14px !important; 
-      z-index: 99999 !important;
+      z-index: 999999 !important;
       display: flex !important; 
       flex-direction: column !important; 
       align-items: center !important; 
       width: 44px !important;
+      max-width: 44px !important;
       gap: 10px !important;
       pointer-events: auto !important;
+      transform: none !important; /* Prevents Browser Zoom Scaling */
     }
 
     #eye-btn {
       width: 44px !important; 
       height: 44px !important; 
       min-width: 44px !important;
+      max-width: 44px !important;
       min-height: 44px !important;
+      max-height: 44px !important;
       border-radius: 50% !important; 
       background: #ffffff !important;
       color: #2563eb !important; 
@@ -108,6 +112,7 @@
 
     #main-toolbar {
       width: 44px !important; 
+      max-width: 44px !important;
       background: #ffffff !important; 
       border-radius: 22px !important;
       display: flex !important; 
@@ -123,9 +128,11 @@
     .ui-hidden { display: none !important; }
 
     .t-btn {
-      background: transparent; color: #475569; border: none; width: 34px; height: 34px;
+      background: transparent; color: #475569; border: none; 
+      width: 32px !important; height: 32px !important;
+      min-width: 32px !important; min-height: 32px !important;
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      font-size: 15px; cursor: pointer; flex-shrink: 0;
+      font-size: 14px !important; cursor: pointer; flex-shrink: 0 !important;
     }
     .t-btn.active { background: #2563eb; color: #ffffff; }
 
@@ -133,7 +140,7 @@
       position: fixed !important; 
       top: 68px !important; 
       left: 68px !important; 
-      z-index: 99998 !important; 
+      z-index: 999998 !important; 
       width: 160px;
       background: #ffffff; border-radius: 14px; padding: 8px; display: none; flex-direction: column; gap: 4px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.2); border: 1px solid #cbd5e1; max-height: 65vh; overflow-y: auto;
@@ -151,7 +158,7 @@
       top: 68px !important; 
       left: 68px !important; 
       width: 200px; background: #ffffff; border-radius: 14px;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.25); border: 1px solid #cbd5e1; padding: 10px; z-index: 99999; display: none;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.25); border: 1px solid #cbd5e1; padding: 10px; z-index: 999999; display: none;
     }
     .c-screen { width: 100%; height: 34px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0; text-align: right; padding: 6px; font-size: 15px; font-weight: bold; margin-bottom: 6px; }
     .c-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
@@ -166,7 +173,7 @@
       position: fixed !important; 
       bottom: 14px !important; 
       right: 14px !important; 
-      z-index: 99998 !important; 
+      z-index: 999998 !important; 
       background: #ffffff;
       border-radius: 20px; padding: 4px 8px; display: flex; gap: 4px; align-items: center;
       box-shadow: 0 4px 15px rgba(0,0,0,0.15); border: 1px solid #cbd5e1;
@@ -182,7 +189,7 @@
     <div id="pdf-render-container"></div>
   </div>
 
-  <!-- SINGLE UNIFIED SIDEBAR (NEVER MOVES ON ZOOM) -->
+  <!-- FIXED SIDEBAR -->
   <div id="sidebar-container">
     <button id="eye-btn" title="Toggle Toolbar"><i class="fa-solid fa-eye"></i></button>
 
@@ -512,6 +519,7 @@
       });
     });
 
+    // Dedicated Internal Zoom Controls (Use Bottom Dock '+' and '-' buttons for PDF Zooming)
     document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.2; renderAllPages(); });
     document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.4) { currentScale -= 0.2; renderAllPages(); } });
 
@@ -615,29 +623,6 @@
     }
 
     renderAllPages();
-  </script>
-
-  <!-- PWA Auto Install Prompt -->
-  <script>
-    let deferredPrompt;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      
-      const installBtn = document.createElement('button');
-      installBtn.innerHTML = '📲 Install TeachBoard App';
-      installBtn.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999999;padding:12px 24px;background:#2563eb;color:#fff;border:none;border-radius:25px;font-weight:bold;box-shadow:0 10px 25px rgba(0,0,0,0.3);cursor:pointer;';
-      
-      document.body.appendChild(installBtn);
-
-      installBtn.addEventListener('click', () => {
-        installBtn.remove();
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then((choiceResult) => {
-          deferredPrompt = null;
-        });
-      });
-    });
   </script>
 </body>
 </html>
