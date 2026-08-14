@@ -9,17 +9,17 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;
-      background-color: #475569 !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      width: 100vw; height: 100vh; overflow: hidden;
+      background-color: #64748b !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       touch-action: none;
     }
 
     #board-wrapper { 
       width: 100vw; height: 100vh; overflow: auto; display: flex; 
-      flex-direction: column; align-items: center; padding: 16px 0; box-sizing: border-box;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-x pan-y;
+      flex-direction: column; align-items: center; padding: 16px 0;
+      -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
     }
 
     #pdf-render-container { 
@@ -28,10 +28,10 @@
 
     .page-wrapper {
       position: relative; box-shadow: 0 8px 25px rgba(0,0,0,0.3); background: #ffffff;
-      border-radius: 4px;
+      border-radius: 4px; overflow: hidden;
     }
 
-    /* Background Modes */
+    /* 12 Color & Grid Backgrounds */
     .bg-white { background-color: #ffffff !important; }
     .bg-yellow { background-color: #fef08a !important; }
     .bg-blue { background-color: #e0f2fe !important; }
@@ -65,16 +65,19 @@
     .pdf-canvas-layer { z-index: 1; }
     .draw-canvas-layer { z-index: 2; touch-action: none; }
 
-    /* Strictly Locked Controls */
+    /* Single Unified Vertical Sidebar Container */
+    #sidebar-container {
+      position: fixed !important; top: 12px !important; left: 12px !important; z-index: 10000 !important;
+      display: flex !important; flex-direction: column !important; align-items: center !important; gap: 8px !important;
+    }
+
     #eye-btn {
-      position: fixed !important; top: 14px !important; left: 14px !important; z-index: 10000 !important;
       width: 42px !important; height: 42px !important; border-radius: 50% !important; background: #ffffff !important;
       color: #2563eb !important; border: 1px solid #cbd5e1 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
       display: flex !important; align-items: center !important; justify-content: center !important; font-size: 18px !important; cursor: pointer !important;
     }
 
     #main-toolbar {
-      position: fixed !important; top: 66px !important; left: 14px !important; z-index: 9999 !important;
       width: 42px !important; background: #ffffff !important; border-radius: 21px !important;
       display: flex !important; flex-direction: column !important; align-items: center !important; padding: 8px 0 !important; gap: 6px !important;
       box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important; border: 1px solid #cbd5e1 !important;
@@ -90,7 +93,7 @@
     .t-btn.active { background: #2563eb; color: #ffffff; }
 
     .pop-panel {
-      position: fixed; top: 66px; left: 62px; z-index: 9997; width: 160px;
+      position: fixed; top: 62px; left: 62px; z-index: 9997; width: 160px;
       background: #ffffff; border-radius: 14px; padding: 8px; display: none; flex-direction: column; gap: 4px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.2); border: 1px solid #cbd5e1; max-height: 65vh; overflow-y: auto;
     }
@@ -103,7 +106,7 @@
     .pop-item:hover { background: #e0e7ff; color: #2563eb; }
 
     #calc-box {
-      position: fixed; top: 66px; left: 62px; width: 200px; background: #ffffff; border-radius: 14px;
+      position: fixed; top: 62px; left: 62px; width: 200px; background: #ffffff; border-radius: 14px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.25); border: 1px solid #cbd5e1; padding: 10px; z-index: 9999; display: none;
     }
     .c-screen { width: 100%; height: 34px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0; text-align: right; padding: 6px; font-size: 15px; font-weight: bold; margin-bottom: 6px; }
@@ -131,22 +134,25 @@
     <div id="pdf-render-container"></div>
   </div>
 
-  <button id="eye-btn" title="Toggle Toolbar"><i class="fa-solid fa-eye"></i></button>
+  <!-- Unified Sidebar Structure (Eye + Toolbar Combined to avoid misalignment) -->
+  <div id="sidebar-container">
+    <button id="eye-btn" title="Toggle Toolbar"><i class="fa-solid fa-eye"></i></button>
 
-  <div id="main-toolbar">
-    <button class="t-btn" id="btn-pen" title="Pen"><i class="fa-solid fa-pen-nib"></i></button>
-    <button class="t-btn" id="btn-eraser" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
-    <button class="t-btn" id="btn-text" title="Text"><i class="fa-solid fa-font"></i></button>
-    <button class="t-btn" id="btn-add-board" title="New Page" style="color: #10b981;"><i class="fa-solid fa-square-plus"></i></button>
-    <button class="t-btn" id="btn-bg-trigger" title="Backgrounds"><i class="fa-solid fa-palette"></i></button>
-    <button class="t-btn" id="btn-calc-trigger" title="Calculator"><i class="fa-solid fa-calculator"></i></button>
-    <button class="t-btn" id="btn-undo" title="Undo"><i class="fa-solid fa-rotate-left"></i></button>
-    <button class="t-btn" id="btn-redo" title="Redo"><i class="fa-solid fa-rotate-right"></i></button>
-    <button class="t-btn" id="btn-shapes-trigger" title="Shapes"><i class="fa-solid fa-shapes"></i></button>
-    <label class="t-btn" for="file-input" title="Open PDF"><i class="fa-solid fa-file-pdf"></i></label>
-    <input type="file" id="file-input" accept="application/pdf">
-    <button class="t-btn" id="btn-clear" title="Clear" style="color: #ef4444;"><i class="fa-solid fa-trash"></i></button>
-    <input type="color" id="pen-color" value="#2563eb">
+    <div id="main-toolbar">
+      <button class="t-btn" id="btn-pen" title="Pen"><i class="fa-solid fa-pen-nib"></i></button>
+      <button class="t-btn" id="btn-eraser" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
+      <button class="t-btn" id="btn-text" title="Text"><i class="fa-solid fa-font"></i></button>
+      <button class="t-btn" id="btn-add-board" title="New Page" style="color: #10b981;"><i class="fa-solid fa-square-plus"></i></button>
+      <button class="t-btn" id="btn-bg-trigger" title="Backgrounds"><i class="fa-solid fa-palette"></i></button>
+      <button class="t-btn" id="btn-calc-trigger" title="Calculator"><i class="fa-solid fa-calculator"></i></button>
+      <button class="t-btn" id="btn-undo" title="Undo"><i class="fa-solid fa-rotate-left"></i></button>
+      <button class="t-btn" id="btn-redo" title="Redo"><i class="fa-solid fa-rotate-right"></i></button>
+      <button class="t-btn" id="btn-shapes-trigger" title="Shapes"><i class="fa-solid fa-shapes"></i></button>
+      <label class="t-btn" for="file-input" title="Open PDF"><i class="fa-solid fa-file-pdf"></i></label>
+      <input type="file" id="file-input" accept="application/pdf">
+      <button class="t-btn" id="btn-clear" title="Clear" style="color: #ef4444;"><i class="fa-solid fa-trash"></i></button>
+      <input type="color" id="pen-color" value="#2563eb">
+    </div>
   </div>
 
   <!-- Shapes Panel -->
@@ -224,7 +230,6 @@
     const historyStore = new WeakMap();
 
     const renderContainer = document.getElementById('pdf-render-container');
-    const boardWrapper = document.getElementById('board-wrapper');
     const mainToolbar = document.getElementById('main-toolbar');
     const bottomDock = document.getElementById('bottom-dock');
     const eyeBtn = document.getElementById('eye-btn');
@@ -262,8 +267,7 @@
     document.getElementById('btn-add-board').addEventListener('click', createBlankPage);
 
     function createBlankPage() {
-      // High-DPI Scale Factor for Ultra Sharp Canvas
-      const hdScale = 2.5;
+      const renderQuality = 3.0; // High Quality Scale Factor
       const width = Math.min(window.innerWidth * 0.95, 800) * currentScale;
       const height = (window.innerHeight * 0.8) * currentScale;
 
@@ -275,9 +279,9 @@
       const dCanvas = document.createElement('canvas');
       dCanvas.className = 'draw-canvas-layer';
       
-      dCanvas.width = width * hdScale;
-      dCanvas.height = height * hdScale;
-      dCanvas.getContext('2d').scale(hdScale, hdScale);
+      dCanvas.width = width * renderQuality;
+      dCanvas.height = height * renderQuality;
+      dCanvas.getContext('2d').scale(renderQuality, renderQuality);
 
       historyStore.set(dCanvas, { stack: [], step: -1 });
 
@@ -297,34 +301,33 @@
         return;
       }
 
-      // HD Quality Multiplier (2.5x Resolution Fixes Blur Issue)
-      const hdScale = 2.5;
+      // Ultra HD Resolution Multiplier (3x fixes blur completely)
+      const renderQuality = 3.0;
 
       for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
         pdfDoc.getPage(pageNum).then(page => {
-          // Render Viewport at High Quality Target
           const baseViewport = page.getViewport({ scale: currentScale });
-          const hdViewport = page.getViewport({ scale: currentScale * hdScale });
+          const hdViewport = page.getViewport({ scale: currentScale * renderQuality });
 
           const pageWrapper = document.createElement('div');
           pageWrapper.className = 'page-wrapper';
           pageWrapper.style.width = `${baseViewport.width}px`;
           pageWrapper.style.height = `${baseViewport.height}px`;
 
-          // Canvas 1: PDF Background Layer (HD Crisp Render)
+          // HD PDF Background Layer
           const pCanvas = document.createElement('canvas');
           pCanvas.className = 'pdf-canvas-layer';
           pCanvas.width = hdViewport.width;
           pCanvas.height = hdViewport.height;
           const pCtx = pCanvas.getContext('2d');
 
-          // Canvas 2: HD Drawing Layer
+          // HD Drawing Layer
           const dCanvas = document.createElement('canvas');
           dCanvas.className = 'draw-canvas-layer';
           dCanvas.width = hdViewport.width;
           dCanvas.height = hdViewport.height;
           const dCtx = dCanvas.getContext('2d');
-          dCtx.scale(hdScale, hdScale);
+          dCtx.scale(renderQuality, renderQuality);
 
           historyStore.set(dCanvas, { stack: [], step: -1 });
 
@@ -332,7 +335,7 @@
           pageWrapper.appendChild(dCanvas);
           renderContainer.appendChild(pageWrapper);
 
-          // Render High-DPI PDF Content
+          // Render PDF at 3x Resolution
           page.render({ canvasContext: pCtx, viewport: hdViewport });
           attachDrawingListeners(dCanvas, pageWrapper);
         });
