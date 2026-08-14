@@ -1,21 +1,21 @@
 {
   "short_name": "TeachBoard",
-  "name": "PDF Teaching Whiteboard",
+  "name": "TeachBoard Pro - Interactive Whiteboard",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/3429/3429402.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "icon-512.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/3429/3429402.png",
       "type": "image/png",
       "sizes": "512x512"
     }
   ],
   "start_url": "./index.html",
   "background_color": "#ffffff",
-  "theme_color": "#007bff",
+  "theme_color": "#2563eb",
   "display": "standalone",
   "orientation": "any"
 }
