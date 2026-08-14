@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TeachBoard Smart Pro</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0088cc">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #333; height: 100vh; width: 100vw; overflow: hidden; display: flex; }
+    
+    #board-wrapper { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; background-color: #ffffff; }
+    #canvas-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; position: absolute; }
+    #pdf-canvas { z-index: 1; }
+    #draw-canvas { z-index: 2; touch-action: none; }
+
+    /* Background Modes */
+    .bg-white { background-color: #ffffff !important; }
+    .bg-green { background-color: #0e3b26 !important; }
+    .bg-dark { background-color: #1a1a1a !important; }
+    .bg-grid { 
+      background-color: #f8fafc !important; 
+      background-image: linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px) !important;
+      background-size: 24px 24px !important;
+    }
+
+    /* Left Blue Sidebar */
+    .left-bar {
+      position: absolute; top: 12px; left: 12px; bottom: 12px; z-index: 100;
+      width: 52px; background: #0088cc; border-radius: 20px; display: flex; flex-direction: column;
+      align-items: center; padding: 12px 0; gap: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      transition: all 0.3s ease;
+    }
+
+    .tool-btn {
+      background: transparent; color: #ffffff; border: none; width: 38px; height: 38px;
+      border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 17px; cursor: pointer; transition: all 0.2s ease;
+    }
+    .tool-btn:active { transform: scale(0.9); }
+    .tool-btn.active { background: #ffffff; color: #0088cc; font-weight: bold; }
+
+    /* Flyout Side Menu */
+    .flyout-panel {
+      position: absolute; top: 12px; left: 72px; bottom: 12px; z-index: 99; width: 220px;
+      background: #0088cc; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 6px;
+      box-shadow: 4px 8px 25px rgba(0,0,0,0.15); overflow-y: auto;
+      transform: translateX(-120%); transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .flyout-panel.open { transform: translateX(0); }
+
+    .flyout-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px;
+      color: #ffffff; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s;
+    }
+    .flyout-item:hover { background: rgba(255, 255, 255, 0.2); }
+
+    /* Sticky Note Style */
+    .sticky-note {
+      position: absolute; width: 160px; height: 160px; padding: 12px; border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08); z-index: 10; font-family: sans-serif;
+      font-size: 14px; border: none; outline: none; resize: both; overflow: auto;
+      background: #fef08a; color: #854d0e;
+    }
+
+    .mind-node {
+      position: absolute; padding: 10px 20px; border-radius: 25px; border: 2px solid #0088cc;
+      background: #ffffff; color: #0088cc; font-weight: 600; font-size: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      outline: none; z-index: 10; cursor: move;
+    }
+
+    /* Calculator Popup */
+    .calc-popup {
+      position: absolute; top: 80px; left: 80px; width: 220px; background: #ffffff; border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; padding: 12px; z-index: 105; display: none;
+    }
+    .calc-screen { width: 100%; height: 40px; background: #f1f5f9; border-radius: 8px; border: none; text-align: right; padding: 8px; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+    .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .calc-btn { padding: 10px; border-radius: 8px; border: none; background: #f8fafc; font-weight: bold; cursor: pointer; }
+
+    #laser-dot { position: absolute; width: 12px; height: 12px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 12px #ef4444, 0 0 20px #ef4444; pointer-events: none; display: none; z-index: 999; }
+
+    .bottom-right-dock {
+      position: absolute; bottom: 16px; right: 16px; z-index: 100; background: #ffffff;
+      border-radius: 12px; padding: 6px 12px; display: flex; gap: 8px; align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;
+    }
+
+    input[type="color"] { border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; background: none; }
+    input[type="file"] { display: none; }
+
+    .page-box { font-size: 12px; font-weight: bold; color: #ffffff; margin-top: auto; display: flex; flex-direction: column; align-items: center; }
+  </style>
+</head>
+<body>
+
+  <div id="board-wrapper">
+    <div id="canvas-container" class="bg-grid">
+      <canvas id="pdf-canvas"></canvas>
+      <canvas id="draw-canvas"></canvas>
+      <div id="laser-dot"></div>
+    </div>
+  </div>
+
+  <!-- Left Sidebar with Undo / Redo Buttons -->
+  <div class="left-bar">
+    <button class="tool-btn active" id="btn-pen" title="Pen"><i class="fa-solid fa-pen"></i></button>
+    <button class="tool-btn" id="btn-eraser" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
+    
+    <!-- Undo & Redo (Back / Forward) -->
+    <button class="tool-btn" id="btn-undo" title="Undo (Back)"><i class="fa-solid fa-rotate-left"></i></button>
+    <button class="tool-btn" id="btn-redo" title="Redo (Forward)"><i class="fa-solid fa-rotate-right"></i></button>
+
+    <button class="tool-btn" id="btn-tools-menu" title="Tools Menu"><i class="fa-solid fa-bars"></i></button>
+    <button class="tool-btn" id="btn-note" title="Sticky Note"><i class="fa-solid fa-sticky-note"></i></button>
+    <button class="tool-btn" id="btn-mindmap" title="Mind Map Node"><i class="fa-solid fa-sitemap"></i></button>
+    <label class="tool-btn" for="file-input" title="Open PDF"><i class="fa-solid fa-file-pdf"></i></label>
+    <input type="file" id="file-input" accept="application/pdf">
+    <button class="tool-btn" id="add-page" title="New Board"><i class="fa-solid fa-plus"></i></button>
+    
+    <input type="color" id="pen-color" value="#0088cc">
+
+    <div class="page-box">
+      <button class="tool-btn" id="prev"><i class="fa-solid fa-chevron-up"></i></button>
+      <span id="page-num">1/1</span>
+      <button class="tool-btn" id="next"><i class="fa-solid fa-chevron-down"></i></button>
+    </div>
+  </div>
+
+  <!-- Flyout Menu -->
+  <div class="flyout-panel" id="flyout-menu">
+    <div class="flyout-item" data-action="pointer"><i class="fa-solid fa-arrow-pointer"></i> Pointer / Laser</div>
+    <div class="flyout-item" data-action="student-signal"><i class="fa-solid fa-hand"></i> Student Signal</div>
+    <div class="flyout-item" data-action="calculator"><i class="fa-solid fa-calculator"></i> Calculator</div>
+    <div class="flyout-item" data-action="line"><i class="fa-solid fa-minus"></i> Line</div>
+    <div class="flyout-item" data-action="arrow"><i class="fa-solid fa-arrow-right"></i> Arrow</div>
+    <div class="flyout-item" data-action="rect"><i class="fa-regular fa-square"></i> Rectangle</div>
+    <div class="flyout-item" data-action="circle"><i class="fa-regular fa-circle"></i> Circle</div>
+    <div class="flyout-item" data-action="text"><i class="fa-solid fa-font"></i> Direct Text</div>
+    <div class="flyout-item" data-action="bg-white"><i class="fa-solid fa-square" style="color: #fff;"></i> Whiteboard</div>
+    <div class="flyout-item" data-action="bg-green"><i class="fa-solid fa-square" style="color: #0e3b26;"></i> Greenboard</div>
+    <div class="flyout-item" data-action="bg-grid"><i class="fa-solid fa-border-all"></i> Grid Board</div>
+    <div class="flyout-item" data-action="clear" style="color: #fca5a5;"><i class="fa-solid fa-trash"></i> Clear All</div>
+  </div>
+
+  <!-- Calculator Tool -->
+  <div class="calc-popup" id="calc-tool">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <span style="font-size: 12px; font-weight: bold; color: #64748b;">Calculator</span>
+      <i class="fa-solid fa-xmark" id="close-calc" style="cursor: pointer; color: #94a3b8;"></i>
+    </div>
+    <input type="text" class="calc-screen" id="calc-display" readonly value="0">
+    <div class="calc-grid">
+      <button class="calc-btn" onclick="calcInput('C')">C</button>
+      <button class="calc-btn" onclick="calcInput('/')">/</button>
+      <button class="calc-btn" onclick="calcInput('*')">*</button>
+      <button class="calc-btn" onclick="calcInput('-')">-</button>
+      <button class="calc-btn" onclick="calcInput('7')">7</button>
+      <button class="calc-btn" onclick="calcInput('8')">8</button>
+      <button class="calc-btn" onclick="calcInput('9')">9</button>
+      <button class="calc-btn" onclick="calcInput('+')">+</button>
+      <button class="calc-btn" onclick="calcInput('4')">4</button>
+      <button class="calc-btn" onclick="calcInput('5')">5</button>
+      <button class="calc-btn" onclick="calcInput('6')">6</button>
+      <button class="calc-btn" onclick="calcSolve()" style="grid-row: span 2; background: #0088cc; color: #fff;">=</button>
+      <button class="calc-btn" onclick="calcInput('1')">1</button>
+      <button class="calc-btn" onclick="calcInput('2')">2</button>
+      <button class="calc-btn" onclick="calcInput('3')">3</button>
+      <button class="calc-btn" onclick="calcInput('0')" style="grid-column: span 2;">0</button>
+      <button class="calc-btn" onclick="calcInput('.')">.</button>
+    </div>
+  </div>
+
+  <!-- Bottom Right Zoom Dock -->
+  <div class="bottom-right-dock">
+    <button class="tool-btn" id="zoom-out" style="color: #333;"><i class="fa-solid fa-minus"></i></button>
+    <span id="zoom-text" style="font-size: 13px; font-weight: 600; color: #475569;">100%</span>
+    <button class="tool-btn" id="zoom-in" style="color: #333;"><i class="fa-solid fa-plus"></i></button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
