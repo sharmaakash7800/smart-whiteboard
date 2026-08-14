@@ -15,8 +15,12 @@ let snapshot = null;
 let pagesData = [null];
 let currentPageIndex = 0; 
 let isPdfMode = false;
+let renderTask = null;
 
-// Undo & Redo History System
+// Multi-touch / Pinch Zoom Variables
+let initialPinchDistance = null;
+let initialScale = 1.0;
+
 let historyStack = [];
 let historyStep = -1;
 const MAX_HISTORY = 30;
@@ -27,6 +31,20 @@ const drawCanvas = document.getElementById('draw-canvas');
 const drawCtx = drawCanvas.getContext('2d');
 const container = document.getElementById('canvas-container');
 const laserDot = document.getElementById('laser-dot');
+
+const leftToolbar = document.getElementById('left-toolbar');
+const bottomDock = document.getElementById('bottom-dock');
+
+function hideToolbars() {
+  leftToolbar.classList.add('autohide');
+  bottomDock.classList.add('autohide');
+  flyoutMenu.classList.remove('open');
+}
+
+function showToolbars() {
+  leftToolbar.classList.remove('autohide');
+  bottomDock.classList.remove('autohide');
+}
 
 function saveHistoryState() {
   historyStep++;
@@ -40,7 +58,6 @@ function saveHistoryState() {
   }
 }
 
-// Undo (Back) Action
 document.getElementById('btn-undo').addEventListener('click', () => {
   if (historyStep > 0) {
     historyStep--;
@@ -51,7 +68,6 @@ document.getElementById('btn-undo').addEventListener('click', () => {
   }
 });
 
-// Redo (Forward) Action
 document.getElementById('btn-redo').addEventListener('click', () => {
   if (historyStep < historyStack.length - 1) {
     historyStep++;
@@ -59,17 +75,6 @@ document.getElementById('btn-redo').addEventListener('click', () => {
   }
 });
 
-// Keyboard Shortcuts (Ctrl + Z & Ctrl + Y)
-document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-    if (e.shiftKey) document.getElementById('btn-redo').click();
-    else document.getElementById('btn-undo').click();
-  } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-    document.getElementById('btn-redo').click();
-  }
-});
-
-// Flyout Menu
 const flyoutMenu = document.getElementById('flyout-menu');
 document.getElementById('btn-tools-menu').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -87,8 +92,6 @@ document.querySelectorAll('.flyout-item').forEach(item => {
     } else if (action === 'pointer') {
       currentTool = 'pointer';
       setActiveBtn(document.getElementById('btn-tools-menu'));
-    } else if (action === 'student-signal') {
-      alert("✋ Student Raised Hand / Signal Triggered!");
     } else if (action === 'calculator') {
       document.getElementById('calc-tool').style.display = 'block';
     } else if (action === 'text') {
@@ -140,43 +143,6 @@ document.getElementById('btn-eraser').addEventListener('click', () => {
   setActiveBtn(document.getElementById('btn-eraser'));
 });
 
-document.getElementById('btn-note').addEventListener('click', () => {
-  const note = document.createElement('div');
-  note.contentEditable = true;
-  note.className = 'sticky-note';
-  note.style.left = `${window.innerWidth / 2 - 80}px`;
-  note.style.top = `${window.innerHeight / 2 - 80}px`;
-  note.innerText = 'Type note...';
-  makeDraggable(note);
-  container.appendChild(note);
-});
-
-document.getElementById('btn-mindmap').addEventListener('click', () => {
-  const node = document.createElement('div');
-  node.contentEditable = true;
-  node.className = 'mind-node';
-  node.style.left = `${window.innerWidth / 2 - 60}px`;
-  node.style.top = `${window.innerHeight / 2 - 20}px`;
-  node.innerText = 'New Node';
-  makeDraggable(node);
-  container.appendChild(node);
-});
-
-function makeDraggable(elm) {
-  let isDragging = false, offset = [0, 0];
-  elm.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    offset = [elm.offsetLeft - e.clientX, elm.offsetTop - e.clientY];
-  });
-  document.addEventListener('mousemove', (e) => {
-    if (isDragging) {
-      elm.style.left = (e.clientX + offset[0]) + 'px';
-      elm.style.top = (e.clientY + offset[1]) + 'px';
-    }
-  });
-  document.addEventListener('mouseup', () => isDragging = false);
-}
-
 document.getElementById('file-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (file && file.type === "application/pdf") {
@@ -187,6 +153,7 @@ document.getElementById('file-input').addEventListener('change', (e) => {
         pdfDoc = doc;
         isPdfMode = true;
         currentPageIndex = 0;
+        currentScale = 1.0;
         renderPage();
       });
     };
@@ -200,27 +167,47 @@ function renderPage() {
   document.getElementById('page-num').textContent = `${currentPageIndex + 1}/${totalPages}`;
   document.getElementById('zoom-text').textContent = `${Math.round(currentScale * 100)}%`;
 
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
   if (isPdfMode && pdfDoc) {
+    if (renderTask) {
+      renderTask.cancel();
+    }
+
     pdfDoc.getPage(currentPageIndex + 1).then(page => {
       const viewport = page.getViewport({ scale: currentScale });
+
       pdfCanvas.height = viewport.height;
       pdfCanvas.width = viewport.width;
       drawCanvas.height = viewport.height;
       drawCanvas.width = viewport.width;
 
+      container.style.width = `${viewport.width}px`;
+      container.style.height = `${viewport.height}px`;
+
       pdfCtx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
-      page.render({ canvasContext: pdfCtx, viewport });
-      restoreDrawing();
+      const renderContext = { canvasContext: pdfCtx, viewport: viewport };
+      renderTask = page.render(renderContext);
+
+      renderTask.promise.then(() => {
+        renderTask = null;
+        restoreDrawing();
+      }).catch(err => {
+        if (err.name !== 'RenderingCancelledException') {
+          console.error(err);
+        }
+      });
     });
   } else {
-    pdfCanvas.width = width * currentScale;
-    pdfCanvas.height = height * currentScale;
-    drawCanvas.width = pdfCanvas.width;
-    drawCanvas.height = pdfCanvas.height;
-    
+    const width = window.innerWidth * currentScale;
+    const height = window.innerHeight * currentScale;
+
+    pdfCanvas.width = width;
+    pdfCanvas.height = height;
+    drawCanvas.width = width;
+    drawCanvas.height = height;
+
+    container.style.width = `${width}px`;
+    container.style.height = `${height}px`;
+
     pdfCtx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
     restoreDrawing();
   }
@@ -251,8 +238,17 @@ document.getElementById('next').addEventListener('click', () => {
   if (currentPageIndex < total - 1) { currentPageIndex++; renderPage(); }
 });
 
-document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.15; renderPage(); });
-document.getElementById('zoom-out').addEventListener('click', () => { if(currentScale > 0.5) { currentScale -= 0.15; renderPage(); } });
+document.getElementById('zoom-in').addEventListener('click', () => { 
+  currentScale += 0.2; 
+  renderPage(); 
+});
+
+document.getElementById('zoom-out').addEventListener('click', () => { 
+  if (currentScale > 0.4) { 
+    currentScale -= 0.2; 
+    renderPage(); 
+  } 
+});
 
 function getPos(e) {
   const rect = drawCanvas.getBoundingClientRect();
@@ -261,7 +257,49 @@ function getPos(e) {
   return { x: clientX - rect.left, y: clientY - rect.top };
 }
 
+// Distance Helper for Pinch Gesture
+function getDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function handleTouchStart(e) {
+  if (e.touches.length === 2) {
+    // 2 Fingers detected -> Enable Pinch-to-Zoom Mode
+    isDrawing = false;
+    initialPinchDistance = getDistance(e.touches);
+    initialScale = currentScale;
+  } else if (e.touches.length === 1) {
+    // 1 Finger -> Drawing Mode
+    startDraw(e);
+  }
+}
+
+function handleTouchMove(e) {
+  if (e.touches.length === 2 && initialPinchDistance) {
+    // Zoom Calculation based on Pinch
+    const currentDistance = getDistance(e.touches);
+    const newScale = initialScale * (currentDistance / initialPinchDistance);
+    
+    if (newScale >= 0.4 && newScale <= 3.0) {
+      currentScale = newScale;
+      renderPage();
+    }
+  } else if (e.touches.length === 1) {
+    draw(e);
+  }
+}
+
+function handleTouchEnd(e) {
+  if (e.touches.length < 2) {
+    initialPinchDistance = null;
+  }
+  stopDraw();
+}
+
 function startDraw(e) {
+  hideToolbars();
   const pos = getPos(e);
   startX = pos.x;
   startY = pos.y;
@@ -280,6 +318,7 @@ function startDraw(e) {
 }
 
 function draw(e) {
+  if (!isDrawing) return;
   const pos = getPos(e);
 
   if (currentTool === 'pointer') {
@@ -289,7 +328,6 @@ function draw(e) {
     return;
   }
 
-  if (!isDrawing) return;
   const color = document.getElementById('pen-color').value;
 
   if (currentTool === 'pen') {
@@ -300,34 +338,6 @@ function draw(e) {
     drawCtx.stroke();
   } else if (currentTool === 'eraser') {
     drawCtx.clearRect(pos.x - 15, pos.y - 15, 30, 30);
-  } else if (currentTool === 'shape') {
-    drawCtx.putImageData(snapshot, 0, 0);
-    drawCtx.strokeStyle = color;
-    drawCtx.lineWidth = 3;
-    drawCtx.beginPath();
-
-    const w = pos.x - startX;
-    const h = pos.y - startY;
-
-    if (currentShape === 'rect') drawCtx.strokeRect(startX, startY, w, h);
-    else if (currentShape === 'circle') {
-      let radius = Math.sqrt(w*w + h*h);
-      drawCtx.arc(startX, startY, radius, 0, 2 * Math.PI);
-      drawCtx.stroke();
-    } else if (currentShape === 'line') {
-      drawCtx.moveTo(startX, startY);
-      drawCtx.lineTo(pos.x, pos.y);
-      drawCtx.stroke();
-    } else if (currentShape === 'arrow') {
-      drawCtx.moveTo(startX, startY);
-      drawCtx.lineTo(pos.x, pos.y);
-      drawCtx.stroke();
-      let angle = Math.atan2(h, w);
-      drawCtx.lineTo(pos.x - 10 * Math.cos(angle - Math.PI / 6), pos.y - 10 * Math.sin(angle - Math.PI / 6));
-      drawCtx.moveTo(pos.x, pos.y);
-      drawCtx.lineTo(pos.x - 10 * Math.cos(angle + Math.PI / 6), pos.y - 10 * Math.sin(angle + Math.PI / 6));
-      drawCtx.stroke();
-    }
   }
 }
 
@@ -336,15 +346,18 @@ function stopDraw() {
     isDrawing = false;
     saveHistoryState(); 
   }
+  setTimeout(showToolbars, 1200);
 }
 
+// Mouse Listeners
 drawCanvas.addEventListener('mousedown', startDraw);
 drawCanvas.addEventListener('mousemove', draw);
 drawCanvas.addEventListener('mouseup', stopDraw);
 
-drawCanvas.addEventListener('touchstart', startDraw);
-drawCanvas.addEventListener('touchmove', draw);
-drawCanvas.addEventListener('touchend', stopDraw);
+// Touch Listeners (Supporting Pinch-to-Zoom)
+drawCanvas.addEventListener('touchstart', handleTouchStart, { passive: true });
+drawCanvas.addEventListener('touchmove', handleTouchMove, { passive: true });
+drawCanvas.addEventListener('touchend', handleTouchEnd);
 
 window.addEventListener('resize', renderPage);
 renderPage();
