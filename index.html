@@ -2,39 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Mobile Screen Lock to prevent accidental page zoom -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>TeachBoard Smart Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+  <title>TeachBoard Smart Pro HD</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    /* Mobile-Optimized CSS Reset */
     html, body {
       width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;
       background-color: #475569 !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      touch-action: none; /* Prevents browser pull-to-refresh & native scroll conflicts */
+      touch-action: none;
     }
 
     #board-wrapper { 
       width: 100vw; height: 100vh; overflow: auto; display: flex; 
-      flex-direction: column; align-items: center; padding: 12px 0; box-sizing: border-box;
+      flex-direction: column; align-items: center; padding: 16px 0; box-sizing: border-box;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-x pan-y;
     }
 
     #pdf-render-container { 
-      display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; 
-      transform-origin: center top; will-change: transform;
+      display: flex; flex-direction: column; gap: 16px; align-items: center; width: 100%; 
     }
 
     .page-wrapper {
-      position: relative; box-shadow: 0 6px 20px rgba(0,0,0,0.3); background: #ffffff;
-      border-radius: 4px; overflow: hidden;
+      position: relative; box-shadow: 0 8px 25px rgba(0,0,0,0.3); background: #ffffff;
+      border-radius: 4px;
     }
 
-    /* 12 Color & Grid Backgrounds */
+    /* Background Modes */
     .bg-white { background-color: #ffffff !important; }
     .bg-yellow { background-color: #fef08a !important; }
     .bg-blue { background-color: #e0f2fe !important; }
@@ -68,18 +65,18 @@
     .pdf-canvas-layer { z-index: 1; }
     .draw-canvas-layer { z-index: 2; touch-action: none; }
 
-    /* Floating Fixed Toolbar & Controls */
+    /* Strictly Locked Controls */
     #eye-btn {
-      position: fixed; top: 10px; left: 10px; z-index: 9999;
-      width: 42px; height: 42px; border-radius: 50%; background: #ffffff;
-      color: #2563eb; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-      display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer;
+      position: fixed !important; top: 14px !important; left: 14px !important; z-index: 10000 !important;
+      width: 42px !important; height: 42px !important; border-radius: 50% !important; background: #ffffff !important;
+      color: #2563eb !important; border: 1px solid #cbd5e1 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+      display: flex !important; align-items: center !important; justify-content: center !important; font-size: 18px !important; cursor: pointer !important;
     }
 
     #main-toolbar {
-      position: fixed; top: 60px; left: 10px; z-index: 9998;
-      width: 42px; background: #ffffff !important; border-radius: 21px;
-      display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 6px;
+      position: fixed !important; top: 66px !important; left: 14px !important; z-index: 9999 !important;
+      width: 42px !important; background: #ffffff !important; border-radius: 21px !important;
+      display: flex !important; flex-direction: column !important; align-items: center !important; padding: 8px 0 !important; gap: 6px !important;
       box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important; border: 1px solid #cbd5e1 !important;
     }
 
@@ -93,7 +90,7 @@
     .t-btn.active { background: #2563eb; color: #ffffff; }
 
     .pop-panel {
-      position: fixed; top: 60px; left: 58px; z-index: 9997; width: 160px;
+      position: fixed; top: 66px; left: 62px; z-index: 9997; width: 160px;
       background: #ffffff; border-radius: 14px; padding: 8px; display: none; flex-direction: column; gap: 4px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.2); border: 1px solid #cbd5e1; max-height: 65vh; overflow-y: auto;
     }
@@ -106,7 +103,7 @@
     .pop-item:hover { background: #e0e7ff; color: #2563eb; }
 
     #calc-box {
-      position: fixed; top: 60px; left: 58px; width: 200px; background: #ffffff; border-radius: 14px;
+      position: fixed; top: 66px; left: 62px; width: 200px; background: #ffffff; border-radius: 14px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.25); border: 1px solid #cbd5e1; padding: 10px; z-index: 9999; display: none;
     }
     .c-screen { width: 100%; height: 34px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0; text-align: right; padding: 6px; font-size: 15px; font-weight: bold; margin-bottom: 6px; }
@@ -160,7 +157,7 @@
     <div class="pop-item" data-action="arrow"><i class="fa-solid fa-arrow-right"></i> Arrow</div>
   </div>
 
-  <!-- 12 Background Colors Panel -->
+  <!-- Background Colors Panel -->
   <div class="pop-panel" id="bg-panel" style="top: 150px;">
     <div class="pop-item" data-bg="white"><i class="fa-solid fa-square" style="color: #cbd5e1;"></i> Pure White</div>
     <div class="pop-item" data-bg="yellow"><i class="fa-solid fa-square" style="color: #fef08a;"></i> Light Yellow</div>
@@ -235,7 +232,7 @@
     const bgPanel = document.getElementById('bg-panel');
     const calcBox = document.getElementById('calc-box');
 
-    // Eye Button Hide/Show
+    // Eye Button Toggle
     eyeBtn.addEventListener('click', () => {
       const isHidden = mainToolbar.classList.toggle('ui-hidden');
       bottomDock.classList.toggle('ui-hidden');
@@ -265,7 +262,8 @@
     document.getElementById('btn-add-board').addEventListener('click', createBlankPage);
 
     function createBlankPage() {
-      const dpr = Math.min(window.devicePixelRatio || 1.5, 2);
+      // High-DPI Scale Factor for Ultra Sharp Canvas
+      const hdScale = 2.5;
       const width = Math.min(window.innerWidth * 0.95, 800) * currentScale;
       const height = (window.innerHeight * 0.8) * currentScale;
 
@@ -277,9 +275,9 @@
       const dCanvas = document.createElement('canvas');
       dCanvas.className = 'draw-canvas-layer';
       
-      dCanvas.width = width * dpr;
-      dCanvas.height = height * dpr;
-      dCanvas.getContext('2d').scale(dpr, dpr);
+      dCanvas.width = width * hdScale;
+      dCanvas.height = height * hdScale;
+      dCanvas.getContext('2d').scale(hdScale, hdScale);
 
       historyStore.set(dCanvas, { stack: [], step: -1 });
 
@@ -299,33 +297,34 @@
         return;
       }
 
-      // Mobile Performance Optimized DPR Scaling
-      const dpr = Math.min(window.devicePixelRatio || 1.5, 2);
+      // HD Quality Multiplier (2.5x Resolution Fixes Blur Issue)
+      const hdScale = 2.5;
 
       for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
         pdfDoc.getPage(pageNum).then(page => {
-          const viewport = page.getViewport({ scale: currentScale });
+          // Render Viewport at High Quality Target
+          const baseViewport = page.getViewport({ scale: currentScale });
+          const hdViewport = page.getViewport({ scale: currentScale * hdScale });
 
           const pageWrapper = document.createElement('div');
           pageWrapper.className = 'page-wrapper';
-          pageWrapper.style.width = `${viewport.width}px`;
-          pageWrapper.style.height = `${viewport.height}px`;
+          pageWrapper.style.width = `${baseViewport.width}px`;
+          pageWrapper.style.height = `${baseViewport.height}px`;
 
-          // HD PDF Background Canvas Layer
+          // Canvas 1: PDF Background Layer (HD Crisp Render)
           const pCanvas = document.createElement('canvas');
           pCanvas.className = 'pdf-canvas-layer';
-          pCanvas.width = viewport.width * dpr;
-          pCanvas.height = viewport.height * dpr;
+          pCanvas.width = hdViewport.width;
+          pCanvas.height = hdViewport.height;
           const pCtx = pCanvas.getContext('2d');
-          pCtx.scale(dpr, dpr);
 
-          // Smooth Mobile Drawing Canvas Layer
+          // Canvas 2: HD Drawing Layer
           const dCanvas = document.createElement('canvas');
           dCanvas.className = 'draw-canvas-layer';
-          dCanvas.width = viewport.width * dpr;
-          dCanvas.height = viewport.height * dpr;
+          dCanvas.width = hdViewport.width;
+          dCanvas.height = hdViewport.height;
           const dCtx = dCanvas.getContext('2d');
-          dCtx.scale(dpr, dpr);
+          dCtx.scale(hdScale, hdScale);
 
           historyStore.set(dCanvas, { stack: [], step: -1 });
 
@@ -333,7 +332,8 @@
           pageWrapper.appendChild(dCanvas);
           renderContainer.appendChild(pageWrapper);
 
-          page.render({ canvasContext: pCtx, viewport: viewport });
+          // Render High-DPI PDF Content
+          page.render({ canvasContext: pCtx, viewport: hdViewport });
           attachDrawingListeners(dCanvas, pageWrapper);
         });
       }
@@ -460,9 +460,9 @@
       });
     });
 
-    // Smooth Zoom Buttons
-    document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.15; renderAllPages(); });
-    document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.5) { currentScale -= 0.15; renderAllPages(); } });
+    // Zoom Buttons
+    document.getElementById('zoom-in').addEventListener('click', () => { currentScale += 0.2; renderAllPages(); });
+    document.getElementById('zoom-out').addEventListener('click', () => { if (currentScale > 0.4) { currentScale -= 0.2; renderAllPages(); } });
 
     // Text Creation
     function createInlineText(wrapper, ctx, x, y) {
@@ -491,7 +491,7 @@
       input.addEventListener('blur', finalizeText);
     }
 
-    // Attach Mobile Optimized Touch & Mouse Listeners
+    // Attach Listeners
     function attachDrawingListeners(canvas, wrapper) {
       const ctx = canvas.getContext('2d');
 
@@ -503,9 +503,7 @@
       }
 
       function startDraw(e) {
-        // Prevent drawing when 2 fingers (Pinch/Scroll) are detected
         if (currentTool === 'off' || (e.touches && e.touches.length > 1)) return;
-        
         const pos = getPos(e);
         startX = pos.x;
         startY = pos.y;
@@ -558,12 +556,10 @@
 
       function stopDraw() { if (isDrawing) { isDrawing = false; saveHistory(canvas); } }
 
-      // Touch Events for Smooth Mobile Response
       canvas.addEventListener('touchstart', startDraw, { passive: true });
       canvas.addEventListener('touchmove', draw, { passive: true });
       canvas.addEventListener('touchend', stopDraw);
 
-      // Mouse Fallbacks
       canvas.addEventListener('mousedown', startDraw);
       canvas.addEventListener('mousemove', draw);
       canvas.addEventListener('mouseup', stopDraw);
